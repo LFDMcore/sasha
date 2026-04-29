@@ -13,10 +13,12 @@
 /**
  * Analyze keyword opportunity gaps.
  *
- * @param {Object} context — Output of ContextBuilder.buildContext()
+ * @param {Object} context   — Output of ContextBuilder.buildContext()
+ * @param {Object} [options] — Options object
+ * @param {string[]} [options.excludePatterns=[]] — Keyword patterns to exclude (case-insensitive contains match)
  * @returns {Object} { topic, opportunities, totalGap }
  */
-export function analyzeOpportunities(context = {}) {
+export function analyzeOpportunities(context = {}, options = {}) {
   const {
     keywords = [],
     clusters = [],
@@ -24,6 +26,8 @@ export function analyzeOpportunities(context = {}) {
     competitors = [],
     weightDistribution = {}
   } = context;
+
+  const { excludePatterns = [] } = options;
 
   // Build set of existing URL paths for quick matching
   const existingPaths = new Set(
@@ -46,6 +50,9 @@ export function analyzeOpportunities(context = {}) {
   for (const kw of keywords) {
     const term = kw.keyword || kw.term || '';
     if (!term) continue;
+
+    // Skip if this keyword matches any exclude pattern
+    if (isExcluded(term, excludePatterns)) continue;
 
     const weight = parseInt(kw.weight || kw.weightGroup || 2, 10);
     const seoPriority = kw.seoPriority || kw.priority || 50;
@@ -203,4 +210,16 @@ function calculateUrgency(score, weight, gap, covered) {
   if (score >= 60 && weight >= 2) return 'high';
   if (score >= 40) return 'medium';
   return 'low';
+}
+
+/**
+ * Check if a keyword matches any exclude pattern (case-insensitive contains).
+ * @param {string} term
+ * @param {string[]} patterns
+ * @returns {boolean}
+ */
+function isExcluded(term, patterns) {
+  if (!patterns || patterns.length === 0) return false;
+  const lower = term.toLowerCase();
+  return patterns.some((pattern) => lower.includes(pattern.toLowerCase()));
 }

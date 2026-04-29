@@ -69,18 +69,72 @@ console.log(`   Strategic decisions: ${Object.keys(context.strategicDecisions ||
 
 // 6. Analyze opportunities
 console.log('5. Analyzing opportunities...');
-const opportunities = analyzeOpportunities(context, { topN: 50 });
-console.log(`   Opportunity topics: ${Object.keys(opportunities.opportunitiesByTopic || {}).length}`);
-const topics = Object.entries(opportunities.opportunitiesByTopic || {})
-  .sort((a, b) => b[1].totalGap - a[1].totalGap);
+
+// Exclude cabinet hardware and non-product terms per strategic decision
+const excludePatterns = [
+  'cabinet hardware', 'cabinet hinge', 'cabinet door', 'cabinet pull', 'cabinet knob',
+  'drawer slide', 'drawer pull', 'drawer glide', 'drawer runner',
+  'shelf bracket', 'shelf standard', 'shelf pin', 'shelf support', 'shelf clip',
+  'closet pole', 'closet rod', 'closet organizer', 'closet system',
+  'barn door', 'barn door hardware', 'barn door kit', 'barn door track',
+  'shower door', 'shower enclosure', 'shower hardware',
+  'garage door', 'garage door hardware', 'garage door opener',
+  'screen door', 'storm door', 'window hardware', 'window lock',
+  'shelf and pole', 'shelving system', 'wire shelving',
+  'closet maid', 'closetmaid', 'rubbermaid closet',
+  'glass shelf bracket', 'glass shelving bracket', 'glass shelving', 'glass shelf',
+  'shelving bracket', 'shelf glass',
+  'pull out shelf', 'pullout shelf', 'pull down shelf',
+  'magic corner', 'blind corner', 'lazy susan'
+];
+
+const opportunities = analyzeOpportunities(context, { excludePatterns });
+
+// Check that excluded terms are gone
+const excludedChecks = [
+  'barn door hardware kit', 'closet poles', 'cabinet hinges',
+  'hidden cabinet door hinges', 'sliding cabinet door hardware',
+  'bar drawer pulls', 'brackets for glass shelving'
+];
+for (const term of excludedChecks) {
+  const found = (opportunities.opportunities || []).some(o =>
+    o.keyword.toLowerCase().includes(term.toLowerCase())
+  );
+  if (found) {
+    console.error(`   ❌ EXCLUDED TERM STILL PRESENT: "${term}"`);
+    process.exitCode = 1;
+  } else {
+    console.log(`   ✅ Excluded term correctly removed: "${term}"`);
+  }
+}
+
+// Check that pocket door terms ARE still present
+const includedChecks = [
+  'pocket door system', 'pocket door frame kit',
+  'pocket door hardware', 'pocket doors'
+];
+for (const term of includedChecks) {
+  const found = (opportunities.opportunities || []).some(o =>
+    o.keyword.toLowerCase().includes(term.toLowerCase())
+  );
+  if (found) {
+    console.log(`   ✅ Core term still present: "${term}"`);
+  } else {
+    console.warn(`   ⚠️ Core term not found in top results: "${term}"`);
+  }
+}
+
+console.log(`   Opportunity topics: ${opportunities.topics?.length || 0}`);
+const topics = (opportunities.topics || [])
+  .sort((a, b) => b.totalGap - a.totalGap);
 
 console.log('\n   Top opportunity topics:');
-topics.slice(0, 10).forEach(([topic, data]) => {
-  console.log(`     ${topic.padEnd(40)} gap=${data.totalGap} ops=${data.opportunities?.length || 0}`);
+topics.slice(0, 10).forEach((t) => {
+  console.log(`     ${t.topic.padEnd(40)} gap=${t.totalGap} ops=${t.opportunities?.length || 0}`);
 });
 
-console.log(`\n   Top individual opportunities:`);
-(opportunities.opportunities || opportunities.topOpportunities || [])
+console.log('\n   Top individual opportunities:');
+(opportunities.opportunities || [])
   .slice(0, 10)
   .forEach(o => {
     console.log(`     "${o.keyword}" (vol=${o.volume}, seo=${o.seoPriority}, gap=${o.competitorGap?.toFixed(1) || '?'}) — ${o.urgency || 'N/A'}`);

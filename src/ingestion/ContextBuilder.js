@@ -104,7 +104,12 @@ function extractIntentCorrections(keywords, intents) {
 
 /**
  * Parse meeting notes for strategic decisions.
- * Simple extractor looking for decision markers.
+ * Two-pass approach:
+ *   1) Structured decision markers (Decision:, Agreed:, etc.)
+ *   2) Free-text regex scanning for key constraints
+ *
+ * @param {string} notes — Raw meeting notes text
+ * @returns {Array<{text:string, source:string, date?:string, type?:string}>}
  */
 function parseStrategicDecisions(notes) {
   if (!notes || typeof notes !== 'string') return [];
@@ -112,32 +117,87 @@ function parseStrategicDecisions(notes) {
   const decisions = [];
   const lines = notes.split(/\r?\n/);
 
+  // --- Pass 1: Structured decision markers (original) ---
   let currentDecision = null;
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // Detect decision markers
     if (/^decision:/i.test(trimmed) || /^-\s*decision:/i.test(trimmed)) {
       if (currentDecision) decisions.push(currentDecision);
       currentDecision = {
         text: trimmed.replace(/^.*?decision:\s*/i, ''),
         source: 'meeting-notes',
-        date: extractDate(trimmed)
+        date: extractDate(trimmed),
+        type: 'decision'
       };
     } else if (/^(decided|agreed|confirmed|resolved):/i.test(trimmed)) {
       if (currentDecision) decisions.push(currentDecision);
       currentDecision = {
         text: trimmed,
         source: 'meeting-notes',
-        date: extractDate(trimmed)
+        date: extractDate(trimmed),
+        type: 'decision'
       };
     } else if (currentDecision && trimmed) {
-      // Continuation of previous decision
       currentDecision.text += ' ' + trimmed;
     }
   }
-
   if (currentDecision) decisions.push(currentDecision);
+
+  // --- Pass 2: Free-text regex scanning ---
+  // Extract key constraints from natural-language sentences
+  const freeTextPatterns = [
+    {
+      // "does not sell cabinet hardware", "doesn't sell cabinet hardware", "not in their product line"
+      pattern: /\bdoes not sell\b|\bdoesn't sell\b|\bnot in (?:their|our) (?:product|line|scope)\b/gi,
+      type: 'exclusion'
+    },
+    {
+      // "Phase 1 focus", "top priority", "strategic priority", "focus area"
+      pattern: /\bphase (?:1|one)\b|\b(?:top\s+)?priority\b|\bfocus\b/gi,
+      type: 'priority'
+    },
+    {
+      // "US-only", "United States only"
+      pattern: /\b(?:US-only|United States only)\b/gi,
+      type: 'restriction'
+    },
+    {
+      // "mandatory", "required", "must", "need to"
+      pattern: /\bmandatory\b|\brequired\b|\bmust\b|\bneed to\b/gi,
+      type: 'requirement'
+    }
+  ];
+
+  // Track seen text snippets to avoid near-duplicate entries for the same match
+  const seen = new Set();
+
+  for (const { pattern, type } of freeTextPatterns) {
+    // Clone pattern to reset lastIndex safely
+    const re = new RegExp(pattern.source, pattern.flags);
+    let match;
+    while ((match = re.exec(notes)) !== null) {
+      // Extract surrounding context (roughly one sentence / line worth)
+      const ctxStart = Math.max(0, match.index - 80);
+      const ctxEnd = Math.min(notes.length, match.index + match[0].length + 120);
+      const context = notes
+        .slice(ctxStart, ctxEnd)
+        .replace(/\n/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Deduplicate: skip if we've already captured this exact snippet
+      const key = `${type}::${context}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      decisions.push({
+        text: context,
+        type,
+        source: 'meeting-notes'
+      });
+    }
+  }
 
   return decisions;
 }
