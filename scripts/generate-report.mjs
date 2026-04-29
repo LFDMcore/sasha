@@ -59,21 +59,58 @@ const EXCLUDED = ['cabinet hardware', 'cabinet hinge', 'cabinet door', 'cabinet 
 const opps = analyzeOpportunities(context, { excludePatterns: EXCLUDED });
 const topOps = opps.opportunities.filter(o => !o.coveredByClient).slice(0, 30);
 
-// 4. Generate architecture plan (fallback if no API key)
+// 4. Generate architecture plan
 console.log('3. Generating architecture plan...');
-const apiKey = process.env.VITE_OPENROUTER_KEY || '';
+// Read DeepSeek API key from Hermes env (ESM-compatible)
+let apiKey = process.env.VITE_DEEPSEEK_API_KEY || '';
+if (!apiKey) {
+  try {
+    const envContent = fs.readFileSync('/home/lfdm/.hermes/.env', 'utf-8');
+    const match = envContent.match(/^DEEPSEEK_API_KEY=(.+)$/m);
+    if (match) apiKey = match[1].trim().replace(/^["']|["']$/g, '');
+  } catch (e) { console.warn('Could not read DeepSeek key:', e.message); }
+}
+// Also try the local .env as fallback
+if (!apiKey) {
+  try {
+    const envContent = fs.readFileSync('/home/lfdm/sasha/.env', 'utf-8');
+    const match = envContent.match(/^VITE_DEEPSEEK_API_KEY=(.+)$/m);
+    if (match) apiKey = match[1].trim().replace(/^["']|["']$/g, '');
+  } catch (e) {}
+}
+
+// Set env so DeepSeekClient picks it up
+process.env.VITE_DEEPSEEK_API_KEY = apiKey;
+process.env.VITE_OPENROUTER_KEY = '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';
+
+// Debug: verify key loaded
+if (!apiKey) {
+  console.warn('   ⚠️ No DeepSeek API key found. Check .hermes/.env or .env');
+} else {
+  console.log(`   ✅ DeepSeek key loaded (${apiKey.substring(0, 8)}...)`);
+}
+
 const arch = apiKey
   ? await generateArchitecturePlan(context, topOps, { apiKey })
   : { phases: {}, summary: {}, recommendations: [] };
-console.log(`   Plan generated (${Object.keys(arch.phases || {}).length} phases)`);
+console.log(`   Plan generated (${Object.keys(arch.phases || {}).length} phases, ${Object.keys(arch).length} top-level keys)`);
 
 // 5. Build DOCX
 console.log('4. Building DOCX document...');
 
 // Phase data from analysis
-const phase1Pages = topOps.filter(o => o.urgency === 'critical' || (o.urgency === 'high' && o.weight >= 3)).slice(0, 5);
-const phase2Pages = topOps.filter(o => o.urgency === 'high' && o.weight >= 2).slice(0, 5);
-const phase3Pages = topOps.filter(o => o.urgency === 'medium').slice(0, 5);
+// Use real DeepSeek data when available, fall back to opportunity analysis
+const hasRealPlan = arch?.phases && Object.keys(arch.phases).length > 0;
+const phaseData = hasRealPlan ? arch.phases : {};
+const phase1Pages = hasRealPlan
+  ? (phaseData.phase1?.pages || [])
+  : topOps.filter(o => o.urgency === 'critical' || (o.urgency === 'high' && o.weight >= 3)).slice(0, 5);
+const phase2Pages = hasRealPlan
+  ? (phaseData.phase2?.pages || [])
+  : topOps.filter(o => o.urgency === 'high' && o.weight >= 2).slice(0, 5);
+const phase3Pages = hasRealPlan
+  ? (phaseData.phase3?.pages || [])
+  : topOps.filter(o => o.urgency === 'medium').slice(0, 5);
 
 const doc = new Document({
   title: 'SASHA Strategy Report — Cavity Sliders',
@@ -106,27 +143,48 @@ const doc = new Document({
       new Paragraph({ text: 'Phase 1: Reclaim Pocket-Door Core (B2B First)', heading: HeadingLevel.HEADING_1 }),
       new Paragraph({ text: 'Mission: Stop losing the category that bears CS\'s flagship product\'s name in the US — with content built for contractors, architects and dealers, not homeowners.', spacing: { after: 200 } }),
       new Paragraph({ text: 'Key pages to build:', heading: HeadingLevel.HEADING_2 }),
-      ...phase1Pages.flatMap((p, i) => [
-        new Paragraph({ text: `${i+1}. "${p.keyword}"`, heading: HeadingLevel.HEADING_3 }),
-        new Paragraph({ text: `   Volume: ${p.volume} | SEO Score: ${p.seoPriority} | Gap: ${p.competitorGap?.toFixed(1)} | Urgency: ${p.urgency}` }),
-        new Paragraph({ text: `   Content weight: ${['','light','medium','heavy','heaviest'][p.weight] || 'light'} | Intent: ${p.intent}`, spacing: { after: 100 } }),
-      ]),
+      ...phase1Pages.flatMap((p, i) => {
+        // Handle both DeepSeek API format and fallback format
+        const pageTitle = p.title || `"${p.keyword}"`;
+        const pageVol = p.volume || '';
+        const pageSeo = p.seoPriority || p.urgencyScore || '';
+        const pageGap = typeof p.competitorGap === 'number' ? p.competitorGap?.toFixed(1) : p.competitorGap || '';
+        const pageUrgency = p.urgency || (p.urgencyScore > 80 ? 'high' : 'medium');
+        const pageWeight = p.contentWeightFocus || p.weight || '';
+        const pageIntent = p.intent || '';
+        return [
+          new Paragraph({ text: `${i+1}. ${pageTitle}`, heading: HeadingLevel.HEADING_3 }),
+          ...(pageVol ? [new Paragraph({ text: `   Volume: ${pageVol} | Score: ${pageSeo} | Gap: ${pageGap} | Urgency: ${pageUrgency}` })] : []),
+          ...(pageWeight ? [new Paragraph({ text: `   Content weight: ${['','light','medium','heavy','heaviest'][pageWeight] || 'light'} | Intent: ${pageIntent}`, spacing: { after: 100 } })] : []),
+        ];
+      }),
 
       // Phase 2: Adjacent Attack
       new Paragraph({ text: 'Phase 2: Adjacent Hardware Attack', heading: HeadingLevel.HEADING_1 }),
       new Paragraph({ text: 'Mission: Enter product-adjacent categories where CS has genuine products but zero search presence.', spacing: { after: 200 } }),
-      ...phase2Pages.flatMap((p, i) => [
-        new Paragraph({ text: `${i+1}. "${p.keyword}"`, heading: HeadingLevel.HEADING_3 }),
-        new Paragraph({ text: `   Volume: ${p.volume} | SEO Score: ${p.seoPriority} | Gap: ${p.competitorGap?.toFixed(1)}` }),
-      ]),
+      ...phase2Pages.flatMap((p, i) => {
+        const pageTitle = p.title || `"${p.keyword}"`;
+        const pageVol = p.volume || '';
+        const pageSeo = p.seoPriority || p.urgencyScore || '';
+        const pageGap = typeof p.competitorGap === 'number' ? p.competitorGap?.toFixed(1) : p.competitorGap || '';
+        return [
+          new Paragraph({ text: `${i+1}. ${pageTitle}`, heading: HeadingLevel.HEADING_3 }),
+          ...(pageVol ? [new Paragraph({ text: `   Volume: ${pageVol} | Score: ${pageSeo} | Gap: ${pageGap}` })] : []),
+        ];
+      }),
 
       // Phase 3: Authority
       new Paragraph({ text: 'Phase 3: Authority Building', heading: HeadingLevel.HEADING_1 }),
       new Paragraph({ text: 'Mission: Establish CS as the definitive reference for pocket door and cavity slider systems across the architectural hardware industry.', spacing: { after: 200 } }),
-      ...phase3Pages.flatMap((p, i) => [
-        new Paragraph({ text: `${i+1}. "${p.keyword}"`, heading: HeadingLevel.HEADING_3 }),
-        new Paragraph({ text: `   Volume: ${p.volume} | SEO Score: ${p.seoPriority}` }),
-      ]),
+      ...phase3Pages.flatMap((p, i) => {
+        const pageTitle = p.title || `"${p.keyword}"`;
+        const pageVol = p.volume || '';
+        const pageSeo = p.seoPriority || p.urgencyScore || '';
+        return [
+          new Paragraph({ text: `${i+1}. ${pageTitle}`, heading: HeadingLevel.HEADING_3 }),
+          ...(pageVol ? [new Paragraph({ text: `   Volume: ${pageVol} | Score: ${pageSeo}` })] : []),
+        ];
+      }),
 
       // Competitive Landscape
       new Paragraph({ text: 'Competitive Landscape', heading: HeadingLevel.HEADING_1 }),
@@ -156,10 +214,17 @@ console.log(`   ✅ DOCX saved: ${outPath} (${(buffer.length / 1024).toFixed(0)}
 console.log('\n5. Verification:');
 const stats = fs.statSync(outPath);
 console.log(`   File size: ${(stats.size / 1024).toFixed(0)} KB`);
-console.log(`   Phases: 3 (Reclaim Core, Adjacent Attack, Authority Building)`);
-console.log(`   Phase 1 pages: ${phase1Pages.length}`);
-console.log(`   Phase 2 pages: ${phase2Pages.length}`);
-console.log(`   Phase 3 pages: ${phase3Pages.length}`);
+console.log(`   Using real DeepSeek plan: ${hasRealPlan ? '✅ YES' : '❌ NO (fallback)'}`);
+if (hasRealPlan) {
+  console.log(`   Phase 1: ${phaseData.phase1?.title || 'N/A'} — ${phase1Pages.length} pages`);
+  console.log(`   Phase 2: ${phaseData.phase2?.title || 'N/A'} — ${phase2Pages.length} pages`);
+  console.log(`   Phase 3: ${phaseData.phase3?.title || 'N/A'} — ${phase3Pages.length} pages`);
+} else {
+  console.log(`   Phases: 3 (Reclaim Core, Adjacent Attack, Authority Building)`);
+  console.log(`   Phase 1 pages: ${phase1Pages.length}`);
+  console.log(`   Phase 2 pages: ${phase2Pages.length}`);
+  console.log(`   Phase 3 pages: ${phase3Pages.length}`);
+}
 console.log(`   B2B vocab terms: ${b2bVocab.length}`);
 console.log(`   Top opportunity: "${topOps[0]?.keyword || 'N/A'}" (${topOps[0]?.volume || 0} vol)`);
 console.log('\n✅ Report generation complete');

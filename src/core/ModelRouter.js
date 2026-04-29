@@ -40,9 +40,10 @@ function storeCache(key, value) {
 // Task complexity classification
 // ---------------------------------------------------------------------------
 const COMPLEX_REASONING_TASKS = new Set([
-  'page-architecture',
-  'competitive-attack',
-  'strategy-doc'
+  // Using flash for everything — pro is 6x cost with marginal quality gain
+  // 'page-architecture',
+  // 'competitive-attack',
+  // 'strategy-doc'
 ]);
 
 export function getModelForTask(taskType) {
@@ -80,6 +81,11 @@ export async function routeCompletion(taskType, messages, options = {}) {
   }
 
   console.log(`[ModelRouter] Routing "${taskType}" → ${model}`);
+  // Use higher max_tokens for complex tasks that include reasoning
+  const isComplex = COMPLEX_REASONING_TASKS.has(taskType) || taskType === 'page-architecture';
+  if (isComplex && !mergedOptions.maxTokens) {
+    mergedOptions.maxTokens = 16384;  // 16K to leave room for reasoning + JSON
+  }
   const result = await generateCompletion(messages, mergedOptions);
 
   // Store in cache

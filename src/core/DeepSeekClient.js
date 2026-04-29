@@ -1,9 +1,18 @@
-/* SASHA — DeepSeek v4 Flash client via OpenRouter
- * Reusable fetch wrapper with retry, circuit breaker, and 529 handling.
+/* SASHA — DeepSeek v4 Flash client
+ * Supports direct DeepSeek API (primary, for cache savings) and OpenRouter (fallback).
+ *
+ * Cache pricing (DeepSeek V4 direct):
+ *   Cache hit:  $0.028/M input tokens  (5x cheaper)
+ *   Cache miss: $0.14/M input tokens
+ *   Output:     $0.28/M tokens
+ *
+ * Strategy: Use direct DeepSeek API by default for prefix cache hits.
+ * Fall back to OpenRouter when DeepSeek is unavailable.
  */
 
 import { useEffect, useState, useCallback } from 'react';
 
+const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // In-memory circuit breaker state
@@ -11,13 +20,51 @@ let circuitOpen = false;
 let circuitFailureCount = 0;
 const CIRCUIT_THRESHOLD = 5;
 const CIRCUIT_RESET_MS = 30_000;
+let useOpenRouter = false; // start with direct DeepSeek
 
 function getApiKey() {
-  const key = import.meta.env.VITE_OPENROUTER_KEY || '';
-  if (!key) {
-    console.warn('[DeepSeekClient] No VITE_OPENROUTER_KEY set — using fallback/demo key');
+  // Support both Vite (import.meta.env) and Node.js (process.env)
+  const metaEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+  
+  // Try direct DeepSeek key first
+  const deepseekKey = metaEnv.VITE_DEEPSEEK_API_KEY || process?.env?.VITE_DEEPSEEK_API_KEY || '';
+  if (deepseekKey && !useOpenRouter) return deepseekKey;
+
+  // Fall back to OpenRouter
+  const orKey = metaEnv.VITE_OPENROUTER_KEY || process?.env?.VITE_OPENROUTER_KEY || '';
+  if (orKey) return orKey;
+
+  console.warn('[DeepSeekClient] No VITE_DEEPSEEK_API_KEY or VITE_OPENROUTER_KEY set');
+  return '';
+}
+
+function getEndpoint() {
+  if (useOpenRouter) return OPENROUTER_URL;
+  return DEEPSEEK_URL;
+}
+
+function getHeaders(apiKey) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`,
+  };
+  // OpenRouter-specific headers
+  if (useOpenRouter) {
+    headers['HTTP-Referer'] = 'https://github.com/lfdm/sasha';
+    headers['X-Title'] = 'SASHA';
   }
-  return key;
+  return headers;
+}
+
+function getModelName(model) {
+  // Map OpenRouter-style names to direct DeepSeek names
+  const modelMap = {
+    'deepseek/deepseek-v4-flash': 'deepseek-v4-flash',
+    'deepseek/deepseek-v4-pro': 'deepseek-v4-pro',
+    'deepseek-v4-flash': 'deepseek-v4-flash',
+    'deepseek-v4-pro': 'deepseek-v4-pro',
+  };
+  return modelMap[model] || model;
 }
 
 /**
@@ -43,33 +90,39 @@ export async function generateCompletion(messages, options = {}) {
     model = 'deepseek/deepseek-v4-flash',
     temperature = 0.3,
     maxTokens = 4096,
-    parseJson = false
+    parseJson = false,
+    apiKey: optApiKey  // accept override from options
   } = options;
 
   if (circuitOpen) {
     throw new Error('[DeepSeekClient] Circuit breaker is OPEN — too many failures. Try again later.');
   }
 
-  const apiKey = getApiKey();
+  const apiKey = optApiKey || getApiKey();
+  const endpoint = getEndpoint();
+  const deepseekModel = getModelName(model);
   const maxRetries = 3;
   let lastError = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetch(OPENROUTER_URL, {
+      const body = {
+        model: deepseekModel,
+        messages,
+        temperature,
+        max_tokens: maxTokens
+      };
+      // Disable thinking for DeepSeek structured output — thinking tokens
+      // compete with content for the max_tokens budget, causing truncation
+      if (useOpenRouter) {
+        // OpenRouter may not support extra_body; skip
+      } else if (deepseekModel.startsWith('deepseek-')) {
+        body.extra_body = { thinking: { type: 'disabled' } };
+      }
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://github.com/lfdm/sasha',
-          'X-Title': 'SASHA'
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature,
-          max_tokens: maxTokens
-        })
+        headers: getHeaders(apiKey),
+        body: JSON.stringify(body)
       });
 
       // Handle 429 / 529 — backoff and retry
@@ -84,15 +137,25 @@ export async function generateCompletion(messages, options = {}) {
         continue;
       }
 
+      // Handle 401 — key invalid, try OpenRouter fallback
+      if (response.status === 401 && !useOpenRouter) {
+        console.warn('[DeepSeekClient] Direct DeepSeek auth failed — switching to OpenRouter fallback');
+        useOpenRouter = true;
+        // Retry this attempt with OpenRouter
+        attempt--;
+        continue;
+      }
+
       // Handle other non-OK
       if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`OpenRouter HTTP ${response.status}: ${body.slice(0, 200)}`);
+        throw new Error(`API HTTP ${response.status}: ${body.slice(0, 200)}`);
       }
 
       // Success
       const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content || '';
+      const message = data?.choices?.[0]?.message || {};
+      const content = message.content || message.reasoning_content || '';
 
       // Reset circuit breaker on success
       circuitFailureCount = 0;
@@ -101,8 +164,29 @@ export async function generateCompletion(messages, options = {}) {
       if (parseJson) {
         // Try to extract JSON from markdown code fences if needed
         const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-        const jsonStr = jsonMatch ? jsonMatch[1].trim() : content.trim();
-        return JSON.parse(jsonStr);
+        let jsonStr = jsonMatch ? jsonMatch[1].trim() : content.trim();
+        
+        // Fix common JSON issues: trailing commas, unterminated strings
+        jsonStr = jsonStr
+          .replace(/,(\s*[}\]])/g, '$1')  // remove trailing commas
+          .replace(/,\s*$/, '')             // trailing comma after last element
+          .replace(/(["\d])\s*\n\s*}/g, '$1\n}') // ensure proper closing};
+        
+        try {
+          return JSON.parse(jsonStr);
+        } catch (jsonErr) {
+          // If JSON parsing fails, try to salvage by truncating at last complete object
+          const lastBrace = jsonStr.lastIndexOf('}');
+          if (lastBrace > 0) {
+            try {
+              return JSON.parse(jsonStr.substring(0, lastBrace + 1));
+            } catch (e2) {
+              // Totally unparseable — throw so caller falls back
+              throw new Error(`JSON parse failed: ${jsonErr.message}. Content preview: ${content.substring(0, 100)}...`);
+            }
+          }
+          throw jsonErr;
+        }
       }
 
       return content;
