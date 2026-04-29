@@ -52,7 +52,7 @@ export function buildContext(sources = {}) {
   const negativeKeywords = handoffConfig.negativeKeywords || [];
 
   // Negative product categories (strategic exclusions)
-  const negativeProductCategories = handoffConfig.negativeProductCategories || [];
+  const negativeProductCategories = handoffConfig.negativeProductCategories || handoffConfig.excludedCategories || [];
 
   // Build exclusion patterns: negativeKeywords + strategic exclusions from meeting notes
   const excludePatterns = buildExcludePatterns(negativeKeywords, negativeProductCategories, meetingNotes);

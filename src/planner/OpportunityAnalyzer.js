@@ -39,6 +39,7 @@ export function analyzeOpportunities(context = {}, options = {}) {
   for (const cluster of clusters) {
     const name = cluster.name || cluster.segment || '';
     const members = cluster.keywords || cluster.members || [];
+    if (typeof members === 'number' || !Array.isArray(members)) continue;
     for (const kw of members) {
       const term = typeof kw === 'string' ? kw : (kw.keyword || kw.term || '');
       segmentMap[term] = name;

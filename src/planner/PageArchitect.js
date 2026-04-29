@@ -145,7 +145,7 @@ export async function generateArchitecturePlan(context, opportunities, options =
   try {
     const result = await routeCompletion('page-architecture', messages, {
       temperature: 0.3,
-      maxTokens: 4096,
+      maxTokens: 16384,
       parseJson: true,
       ...options
     });

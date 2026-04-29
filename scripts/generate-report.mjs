@@ -16,7 +16,7 @@ console.log('=== SASHA Strategy Document Generation ===\n');
 
 // 1. Load data
 console.log('1. Loading data...');
-const handoff = JSON.parse(fs.readFileSync(SASHA_PATH + '/test-data/handoff.json', 'utf-8'));
+const handoff = JSON.parse(fs.readFileSync(SASHA_PATH + '/test-data/cavity-sliders-handoff.json', 'utf-8'));
 const laylaCsv = fs.readFileSync(CODI_PATH + '/test-files/CavitySliders_LAYLA.csv', 'utf-8');
 const laylaData = parseLaylaCsv(laylaCsv);
 console.log(`   ${handoff.keywords.length} keywords loaded`);
