@@ -70,25 +70,14 @@ console.log(`   Strategic decisions: ${Object.keys(context.strategicDecisions ||
 // 6. Analyze opportunities
 console.log('5. Analyzing opportunities...');
 
-// Exclude cabinet hardware and non-product terms per strategic decision
-const excludePatterns = [
-  'cabinet hardware', 'cabinet hinge', 'cabinet door', 'cabinet pull', 'cabinet knob',
-  'drawer slide', 'drawer pull', 'drawer glide', 'drawer runner',
-  'shelf bracket', 'shelf standard', 'shelf pin', 'shelf support', 'shelf clip',
-  'closet pole', 'closet rod', 'closet organizer', 'closet system',
-  'barn door', 'barn door hardware', 'barn door kit', 'barn door track',
-  'shower door', 'shower enclosure', 'shower hardware',
-  'garage door', 'garage door hardware', 'garage door opener',
-  'screen door', 'storm door', 'window hardware', 'window lock',
-  'shelf and pole', 'shelving system', 'wire shelving',
-  'closet maid', 'closetmaid', 'rubbermaid closet',
-  'glass shelf bracket', 'glass shelving bracket', 'glass shelving', 'glass shelf',
-  'shelving bracket', 'shelf glass',
-  'pull out shelf', 'pullout shelf', 'pull down shelf',
-  'magic corner', 'blind corner', 'lazy susan'
-];
+// Exclusions come from the handoff config — no hardcoded lists
+// The context.excludePatterns is built by ContextBuilder from:
+//   - handoff.config.negativeKeywords
+//   - handoff.config.negativeProductCategories
+//   - strategic exclusions parsed from meeting notes ("does not sell X")
+console.log(`   Using ${context.excludePatterns?.length || 0} exclude patterns from config`);
 
-const opportunities = analyzeOpportunities(context, { excludePatterns });
+const opportunities = analyzeOpportunities(context, { excludePatterns: context.excludePatterns || [] });
 
 // Check that excluded terms are gone
 const excludedChecks = [

@@ -12,8 +12,10 @@
  * @returns {Object} ppcStructure
  */
 export function generatePpcStructure(context = {}, opportunities = {}) {
-  const { competitors = [], weightDistribution = {} } = context;
+  const { competitors = [], weightDistribution = {}, clientInfo = {} } = context;
   const topKw = (opportunities.opportunities || []).slice(0, 20);
+
+  const clientName = clientInfo?.name || 'Client';
 
   // Group by intent
   const byIntent = { commercial: [], informational: [], transactional: [], navigational: [] };
@@ -26,7 +28,7 @@ export function generatePpcStructure(context = {}, opportunities = {}) {
   const campaignGroups = Object.entries(byIntent)
     .filter(([_, kws]) => kws.length > 0)
     .map(([intent, kws]) => ({
-      campaignName: `Cavi - ${capitalize(intent)} - Search`,
+      campaignName: `${clientName} - ${capitalize(intent)} - Search`,
       adGroups: kws.slice(0, 5).map((kw, i) => ({
         name: `AG ${i + 1} - ${kw.keyword.slice(0, 30)}`,
         keywords: [kw.keyword],

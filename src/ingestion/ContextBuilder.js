@@ -5,6 +5,12 @@
  *   - Meeting notes (client strategic decisions)
  *   - B2B vocabulary list
  *   - Website crawl data
+ *
+ * The context object now includes ALL enriched data from the CODI handoff config:
+ *   - excludePatterns: built from negativeKeywords + strategic exclusions
+ *   - productNames: from handoff.config.extractedProducts
+ *   - competitorBrands: from handoff.config.extractedCompetitorBrands
+ *   - negativeProductCategories: from handoff.config.negativeProductCategories
  */
 
 /**
@@ -33,6 +39,24 @@ export function buildContext(sources = {}) {
   const intents = codiHandoff?.intents || codiHandoff?.data?.intents || {};
   const approvedStatus = codiHandoff?.approvedStatus || codiHandoff?.data?.approvedStatus || {};
 
+  // --- Extract enriched config from handoff ---
+  const handoffConfig = codiHandoff?.config || {};
+
+  // Product names auto-extracted from client context by CODI
+  const productNames = handoffConfig.extractedProducts || [];
+
+  // Competitor brand fragments from LAYLA
+  const competitorBrands = handoffConfig.extractedCompetitorBrands || [];
+
+  // Negative keywords from user config
+  const negativeKeywords = handoffConfig.negativeKeywords || [];
+
+  // Negative product categories (strategic exclusions)
+  const negativeProductCategories = handoffConfig.negativeProductCategories || [];
+
+  // Build exclusion patterns: negativeKeywords + strategic exclusions from meeting notes
+  const excludePatterns = buildExcludePatterns(negativeKeywords, negativeProductCategories, meetingNotes);
+
   // Build weight distribution
   const weightDistribution = buildWeightDistribution(keywords);
 
@@ -59,6 +83,12 @@ export function buildContext(sources = {}) {
     weightDistribution,
     strategicDecisions,
     existingUrls,
+    productNames,
+    competitorBrands,
+    negativeKeywords,
+    negativeProductCategories,
+    excludePatterns,
+    handoffConfig,
     pullDate: laylaData?.pullDate || '',
     // Raw references for downstream use
     raw: {
@@ -206,6 +236,54 @@ function parseStrategicDecisions(notes) {
  * Naive date extractor from text.
  */
 function extractDate(text) {
-  const dateMatch = text.match(/\d{4}[-/]\d{2}[-/]\d{2}/);
+  const dateMatch = text.match(/\d{4}[-\/]\d{2}[-\/]\d{2}/);
   return dateMatch ? dateMatch[0] : '';
+}
+
+/**
+ * Build exclusion patterns from multiple sources:
+ *   - negativeKeywords from user config
+ *   - negativeProductCategories from handoff config
+ *   - Strategic exclusions parsed from meeting notes ("does not sell X")
+ *
+ * @param {string[]} negativeKeywords
+ * @param {string[]} negativeProductCategories
+ * @param {string} meetingNotes
+ * @returns {string[]}
+ */
+function buildExcludePatterns(negativeKeywords = [], negativeProductCategories = [], meetingNotes = '') {
+  const patterns = new Set();
+
+  // 1. From negativeKeywords
+  for (const kw of negativeKeywords) {
+    if (kw && kw.trim()) patterns.add(kw.trim().toLowerCase());
+  }
+
+  // 2. From negativeProductCategories
+  for (const cat of negativeProductCategories) {
+    if (cat && cat.trim()) patterns.add(cat.trim().toLowerCase());
+  }
+
+  // 3. From meeting notes — extract "does not sell X" patterns
+  if (meetingNotes) {
+    // Match: "does not sell X", "doesn't sell X", "not in product line", "exclude X"
+    const exclusionRegexes = [
+      /does\s+not\s+sell\s+(.+?)(?:\.|,|;|\n|$)/gi,
+      /doesn't\s+sell\s+(.+?)(?:\.|,|;|\n|$)/gi,
+      /not\s+in\s+(?:their|our)\s+(?:product|line|scope)\s+(.+?)(?:\.|,|;|\n|$)/gi,
+      /exclude\s+(.+?)(?:\.|,|;|\n|$)/gi,
+    ];
+
+    for (const regex of exclusionRegexes) {
+      let match;
+      while ((match = regex.exec(meetingNotes)) !== null) {
+        const extracted = match[1].trim().toLowerCase();
+        if (extracted) {
+          patterns.add(extracted);
+        }
+      }
+    }
+  }
+
+  return Array.from(patterns);
 }

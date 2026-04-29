@@ -27,28 +27,39 @@ function buildArchitecturePrompt(context, opportunities) {
     b2bVocab = [],
     strategicDecisions = [],
     weightDistribution = {},
-    keywords = []
+    keywords = [],
+    productNames = [],
+    handoffConfig = {}
   } = context;
 
   const topOpportunities = (opportunities.opportunities || []).slice(0, 30);
 
-  const competitorNames = competitors.map((c) => c.domain).join(', ') || 'Hafele, Johnson Hardware, Richelieu';
-  const clientName = clientInfo.name || 'Cavi (CaviSlider, CaviTrack, CaviLock)';
+  const competitorNames = competitors.map((c) => c.domain).join(', ') || 'Various competitors';
+  // Use product names from handoff config if available, otherwise use a generic label
+  const productLinesStr = productNames.length > 0
+    ? productNames.join(', ')
+    : (clientInfo.name || 'your products');
+  const clientName = clientInfo.name || (productNames.length > 0 ? productNames.slice(0, 3).join(', ') : 'Client');
 
   // B2B vocabulary context
   const b2bContext = b2bVocab.length > 0
     ? b2bVocab.join(', ')
-    : 'heavy-duty, commercial-grade, architectural hardware, continuous hinge, pocket door system, sliding door hardware, barn door hardware, fire-rated, ADA compliant, commercial construction, multi-family, hospitality';
+    : 'heavy-duty, commercial-grade, architectural hardware, pocket door system, sliding door hardware, fire-rated, ADA compliant, commercial construction, multi-family, hospitality';
 
   // Strategic decisions from meetings
   const decisionsText = strategicDecisions.length > 0
     ? strategicDecisions.map((d) => `- ${d.text}`).join('\n')
-    : '- US-only focus\n- Pocket door hardware first (core reclamation)\n- Adjacent hardware attack (Hafele/Johnson territory) in Phase 2\n- Authority building in Phase 3';
+    : '- US-only focus\n- Content strategy to be defined\n- Build authority in product categories';
 
   // Weight distribution summary
   const weightSummary = Object.entries(weightDistribution)
     .map(([w, count]) => `Weight ${w}: ${count} keywords`)
     .join('\n');
+
+  // Build product lines description from product names
+  const productLinesDesc = productNames.length > 0
+    ? productNames.join(', ')
+    : 'Various product lines';
 
   const systemPrompt = `You are SASHA, an expert SEO strategist and content architect specializing in B2B architectural hardware e-commerce.
 
@@ -56,7 +67,7 @@ You are generating a Page Architecture Plan for ${clientName}.
 
 ## Context
 - **Client**: ${clientName} — manufacturer of premium architectural hardware
-- **Product Lines**: CaviSlider (sliding door systems), CaviTrack (track systems), CaviLock (locksets), CaviAccessories, CaviSelect
+- **Product Lines**: ${productLinesDesc}
 - **Target Market**: US only (commercial construction, multi-family, hospitality)
 - **Competitors**: ${competitorNames}
 

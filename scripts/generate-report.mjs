@@ -31,10 +31,7 @@ Biggest opportunity: pocket door terms (356K monthly searches, CS captures ~11%)
 Main competitor: Pocket Door Superstore (19K monthly traffic).
 Phase 1: Reclaim pocket-door core, fix cannibalization, optimize existing pages.`;
 
-const b2bVocab = ['high end', 'premium', 'luxury', 'architectural', 'heavy duty',
-  'commercial', 'commercial grade', 'contractor', 'specifier', 'trade',
-  'wholesale', 'OEM', 'distributor', 'dealer', 'spec sheet', 'cut sheet',
-  'installer', 'rough opening', 'fire rated', 'ADA', 'soft close', 'automatic'];
+const b2bVocab = handoff.config?.b2bVocabulary || [];
 
 const context = buildContext({
   codiHandoff: handoff,
@@ -46,17 +43,15 @@ const context = buildContext({
 
 // 3. Analyze
 console.log('2. Analyzing opportunities...');
-const EXCLUDED = ['cabinet hardware', 'cabinet hinge', 'cabinet door', 'cabinet pull',
-  'cabinet knob', 'drawer slide', 'drawer pull', 'drawer glide', 'shelf bracket',
-  'shelf standard', 'shelf pin', 'closet pole', 'closet rod', 'closet organizer',
-  'barn door', 'barn door hardware', 'barn door kit', 'shower door', 'garage door',
-  'screen door', 'window hardware', 'wire shelving', 'glass shelf', 'glass shelving',
-  'magic corner', 'blind corner', 'lazy susan', 'led tape light', 'vending machine',
-  'outdoor tv', 'tv lift', 'tv cabinet', 'coat hook', 'coat rack',
-  'gate hardware', 'sliding gate', 'folding door',
-  'door hinges', 'door closer', 'storm door'];
 
-const opps = analyzeOpportunities(context, { excludePatterns: EXCLUDED });
+// Exclusions come from the handoff config now — no hardcoded lists
+// The context.excludePatterns is built by ContextBuilder from:
+//   - handoff.config.negativeKeywords
+//   - handoff.config.negativeProductCategories
+//   - strategic exclusions parsed from meeting notes ("does not sell X")
+console.log(`   Config exclusions: ${context.excludePatterns?.length || 0} patterns`);
+
+const opps = analyzeOpportunities(context, { excludePatterns: context.excludePatterns || [] });
 const topOps = opps.opportunities.filter(o => !o.coveredByClient).slice(0, 30);
 
 // 4. Generate architecture plan
@@ -113,20 +108,20 @@ const phase3Pages = hasRealPlan
   : topOps.filter(o => o.urgency === 'medium').slice(0, 5);
 
 const doc = new Document({
-  title: 'SASHA Strategy Report — Cavity Sliders',
+  title: `SASHA Strategy Report — ${handoff.client || handoff.config?.clientDomain || 'Client'}`,
   description: 'Strategic Content Opportunity & 12-Month Plan',
   styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
   sections: [{
     children: [
       // Title page
       new Paragraph({ text: 'SASHA — Strategic Architecture Plan', heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: 'Cavity Sliders', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 100 } }),
-      new Paragraph({ text: `Generated: ${new Date().toISOString().split('T')[0]} | OEM / Distributor Edition`, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
+      new Paragraph({ text: handoff.client || handoff.config?.clientDomain || 'Client', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 100 } }),
+      new Paragraph({ text: `Generated: ${new Date().toISOString().split('T')[0]} | Strategic Edition`, alignment: AlignmentType.CENTER, spacing: { after: 400 } }),
 
       // Executive Summary
       new Paragraph({ text: 'Executive Summary', heading: HeadingLevel.HEADING_1 }),
       new Paragraph({
-        text: `Derived from CODI v4 pipeline export — ${opps.totalKeywords} keywords analyzed, ${opps.topics.length} topics identified. Total unmet opportunity gap: ${opps.totalGap} keywords. Cavity Sliders is massively under-indexed in the US pocket door category (356K monthly searches, ~11% capture). This plan follows the 4-weight content framework focusing on B2B-first content for contractors, architects, specifiers, and dealers.`,
+        text: `Derived from CODI v4 pipeline export — ${opps.totalKeywords} keywords analyzed, ${opps.topics.length} topics identified. Total unmet opportunity gap: ${opps.totalGap} keywords. This plan follows the 4-weight content framework focusing on B2B-first content for contractors, architects, specifiers, and dealers.`,
         spacing: { after: 200 }
       }),
 
@@ -140,8 +135,8 @@ const doc = new Document({
       new Paragraph({ text: `• Content weights: heaviest=${context.keywords.filter(k => (k.content_weight||0)>=4).length}, heavy=${context.keywords.filter(k => k.content_weight===3).length}, medium=${context.keywords.filter(k => k.content_weight===2).length}, light=${context.keywords.filter(k => k.content_weight===1).length}`, spacing: { after: 200 } }),
 
       // Phase 1: Reclaim Core
-      new Paragraph({ text: 'Phase 1: Reclaim Pocket-Door Core (B2B First)', heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: 'Mission: Stop losing the category that bears CS\'s flagship product\'s name in the US — with content built for contractors, architects and dealers, not homeowners.', spacing: { after: 200 } }),
+      new Paragraph({ text: 'Phase 1: Core Product Categories (B2B First)', heading: HeadingLevel.HEADING_1 }),
+      new Paragraph({ text: 'Mission: Build content for the client\'s core product categories with content built for contractors, architects and dealers, not homeowners.', spacing: { after: 200 } }),
       new Paragraph({ text: 'Key pages to build:', heading: HeadingLevel.HEADING_2 }),
       ...phase1Pages.flatMap((p, i) => {
         // Handle both DeepSeek API format and fallback format
@@ -160,8 +155,8 @@ const doc = new Document({
       }),
 
       // Phase 2: Adjacent Attack
-      new Paragraph({ text: 'Phase 2: Adjacent Hardware Attack', heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: 'Mission: Enter product-adjacent categories where CS has genuine products but zero search presence.', spacing: { after: 200 } }),
+      new Paragraph({ text: 'Phase 2: Adjacent Categories', heading: HeadingLevel.HEADING_1 }),
+      new Paragraph({ text: 'Mission: Enter product-adjacent categories where the client has genuine products but zero search presence.', spacing: { after: 200 } }),
       ...phase2Pages.flatMap((p, i) => {
         const pageTitle = p.title || `"${p.keyword}"`;
         const pageVol = p.volume || '';
@@ -175,7 +170,7 @@ const doc = new Document({
 
       // Phase 3: Authority
       new Paragraph({ text: 'Phase 3: Authority Building', heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: 'Mission: Establish CS as the definitive reference for pocket door and cavity slider systems across the architectural hardware industry.', spacing: { after: 200 } }),
+      new Paragraph({ text: 'Mission: Establish the client as the definitive reference for their product categories across the industry.', spacing: { after: 200 } }),
       ...phase3Pages.flatMap((p, i) => {
         const pageTitle = p.title || `"${p.keyword}"`;
         const pageVol = p.volume || '';
@@ -188,7 +183,7 @@ const doc = new Document({
 
       // Competitive Landscape
       new Paragraph({ text: 'Competitive Landscape', heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: 'Key competitors identified from LAYLA analysis: Pocket Door Superstore (19K monthly traffic, dominant in pocket door category), Hafele (55K, covers product-adjacent categories), Johnson Hardware (17.5K, pocket door frames), Sugatsune (29K, specialty hardware), Eclisse (2.8K, European cavity slider systems). CS dominates the branded "Cavity Slider" cluster (87% share, 2,310 monthly searches) but is nearly invisible in the 356K-volume US pocket door search landscape.', spacing: { after: 200 } }),
+      new Paragraph({ text: `Key competitors identified from LAYLA analysis: ${context.competitors?.map(c => (c.domain || c.name)).join(', ') || 'Various competitors in the space'}.`, spacing: { after: 200 } }),
 
       // B2B Vocabulary
       new Paragraph({ text: 'Mandatory B2B Vocabulary', heading: HeadingLevel.HEADING_1 }),
@@ -196,9 +191,9 @@ const doc = new Document({
 
       // Recommendations
       new Paragraph({ text: 'Implementation Recommendations', heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: '1. Fix cannibalization first — 24+ client URLs competing for pocket door keywords, consolidate canonicals.' }),
-      new Paragraph({ text: '2. Optimize existing ranking pages — 674 "Optimize" actions tagged, prioritize pocket-door subset.' }),
-      new Paragraph({ text: '3. Build B2B hub pages — missing content gaps where 3+ competitors rank and CS has no page.' }),
+      new Paragraph({ text: '1. Fix cannibalization first — consolidate overlapping URLs targeting the same keywords.' }),
+      new Paragraph({ text: '2. Optimize existing ranking pages — prioritize pages with high opportunity scores.' }),
+      new Paragraph({ text: '3. Build B2B hub pages — fill content gaps where 3+ competitors rank and the client has no page.' }),
       new Paragraph({ text: '4. Use mandatory B2B vocabulary on every page — trade modifiers qualify traffic for contract/architect audiences.' }),
       new Paragraph({ text: '5. Monitor GPG CPC thresholds — target $0.55 avg CPC, avoid keywords above $0.78 for initial campaigns.' }),
     ]
