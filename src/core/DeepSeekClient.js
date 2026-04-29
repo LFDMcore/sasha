@@ -24,6 +24,10 @@ let useOpenRouter = false; // start with direct DeepSeek
 
 function getApiKey() {
   // Support both Vite (import.meta.env) and Node.js (process.env)
+  // Check runtime-provided key first (from user input in UI)
+  if (typeof window !== 'undefined' && window.__SASHA_API_KEY) {
+    return window.__SASHA_API_KEY;
+  }
   const metaEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
   
   // Try direct DeepSeek key first

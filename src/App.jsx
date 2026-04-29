@@ -144,6 +144,14 @@ export default function App() {
             ) : (
               <>
                 <div className="generate-bar">
+                  <div className="api-key-input">
+                    <input
+                      type="password"
+                      placeholder="DeepSeek API Key (required for AI generation)"
+                      onChange={(e) => { window.__SASHA_API_KEY = e.target.value; }}
+                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #333', background: '#1a1a2e', color: '#e0e0e0', width: '320px', fontSize: '13px' }}
+                    />
+                  </div>
                   <button
                     className="btn btn-primary btn-generate"
                     onClick={handleGenerate}
@@ -162,7 +170,7 @@ export default function App() {
 
       <footer className="app-footer">
         <span>SASHA v1.0 — Built for LFDM</span>
-        <span className="footer-model">DeepSeek v4 Flash via OpenRouter</span>
+        <span className="footer-model">DeepSeek v4 Flash (direct API — 5x cache savings)</span>
       </footer>
     </div>
   );
