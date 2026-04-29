@@ -71,9 +71,7 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div className="header-brand">
-          <Sparkles className="brand-icon" size={24} />
-          <h1>SASHA</h1>
-          <span className="brand-sub">Strategic Layer</span>
+          <h1><span className="sage">SASHA</span> <span className="muted">strategic layer</span></h1>
         </div>
         <div className="header-tabs">
           <button
@@ -147,9 +145,8 @@ export default function App() {
                   <div className="api-key-input">
                     <input
                       type="password"
-                      placeholder="DeepSeek API Key (required for AI generation)"
+                      placeholder="DeepSeek API Key"
                       onChange={(e) => { window.__SASHA_API_KEY = e.target.value; }}
-                      style={{ padding: '8px', borderRadius: '6px', border: '1px solid #333', background: '#1a1a2e', color: '#e0e0e0', width: '320px', fontSize: '13px' }}
                     />
                   </div>
                   <button
