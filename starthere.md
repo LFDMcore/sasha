@@ -180,6 +180,9 @@ Verified from files:
 - Blog/PPC/competitive/timeline modules may be prototype-level; verify output evidence columns before shipping.
 - Final Google Docs strategy styling should not rely on weak model formatting. Use deterministic Docs API formatting or a known-good template.
 - SASHA Final must read/obey approved Strategy Contract; if not wired, do not call output final.
+- CODI-side `scripts/sasha-tabs.py` creates SASHA-compatible sheet tabs, but it is not proof that `/home/lfdm/sasha` final planner modules ran. Client-facing sheet tabs must be explicitly named `SASHA Initial:` or `SASHA Final:`.
+- A short phase-plan Google Doc is not a final strategy doc. Use the Hittelman strategy doc as the reference standard: `Strategic Content Opportunity & 12-Month Plan`, client meeting context before recommendations, dataset snapshot, priority clusters, 12-month three-phase plan, immediate actions, and native Docs headings/lists.
+- `/home/lfdm/sassy-factory/codi/scripts/run-sasha-pipeline.sh` is stale for final delivery: it can generate local DOCX/report artifacts, but it does not guarantee named SASHA tabs or a polished Google Doc in the client Drive folder.
 
 ## Known issues and failure modes
 
