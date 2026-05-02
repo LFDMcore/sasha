@@ -76,11 +76,16 @@ Latest verified CODI-side delivery:
 SASHA gaps exposed by Healthspan:
 - CODI-side `scripts/sasha-tabs.py` can create SASHA-compatible tabs, but that is not the same as the `/home/lfdm/sasha` planner modules producing a fully approved SASHA Final.
 - SASHA must visibly carry Strategy Contract phases into client-facing tabs/docs; hidden `strategy_phase` metadata is not enough.
-- SASHA must not let raw SEO score make vague clusters like `Prospecting Financial Advisor` the lead strategy without contract validation.
-- Strategy should distinguish advisor-organization/platform/software demand from consumer/client-of-advisor queries such as advisor fees, suing an advisor, or retail advisor shopping.
-- Healthspan needs a “we own term” lane: healthspan/holistic/health-planning category language can be strategically first even when exact search volume is small.
+- SASHA must not let raw SEO score make vague clusters like `Prospecting Financial Advisor` the lead Healthspan strategy without contract validation.
+- Strategy should distinguish the approved buyer/audience from lookalike but wrong-intent queries. In Healthspan, advisor-organization/platform/software demand differed from consumer/client-of-advisor queries such as advisor fees, suing an advisor, or retail advisor shopping.
+- Healthspan needs a “we own term” lane: healthspan/holistic/health-planning category language can be strategically first even when exact search volume is small. For other clients, this generalizes only to Strategy Contract-approved category language, not these exact terms.
 - Feedback comments can require SASHA sequencing changes, not just copy edits. Comment intake must classify CODI vs SASHA vs PPC vs doc-only before any rerun.
 - Final strategy doc delivery should remain deterministic/known-good styled, with narrative quality equivalent to the Hittelman reference.
+
+Client-agnostic lesson:
+- Do not encode Healthspan/advisor/platform language as generic SASHA defaults.
+- Generic SASHA should consume structured Strategy Contract fields such as `priority_lanes`, `audience_fit_rules`, `hold_terms`, `reframe_rules`, and `strategic_category_terms`.
+- A “we own term” lane is only valid when the approved Strategy Contract says category creation matters for that client.
 
 ## Key files
 
@@ -197,8 +202,9 @@ Verified from files:
 - Final Google Docs strategy styling should not rely on weak model formatting. Use deterministic Docs API formatting or a known-good template.
 - SASHA Final must read/obey approved Strategy Contract; if not wired, do not call output final.
 - SASHA must visibly output Strategy Contract phase/why fields in tabs/docs, not only local JSON metadata.
-- SASHA needs a first-class “we own term” lane for strategic category language with low/immature search volume.
-- SASHA needs explicit audience guards: advisor organization/platform/software demand is different from client-of-advisor consumer demand.
+- SASHA needs support for Strategy Contract-defined strategic category lanes where low/immature search volume should not bury approved category-creation terms.
+- SASHA needs explicit audience guards from the Strategy Contract; do not hardcode Healthspan's advisor/platform vs client-of-advisor split as a universal rule.
+- SASHA needs structured contract inputs for priority lanes, hold terms, reframe rules, audience-fit rules, and strategic category terms before this can be called client/vertical agnostic.
 - CODI-side `scripts/sasha-tabs.py` creates SASHA-compatible sheet tabs, but it is not proof that `/home/lfdm/sasha` final planner modules ran. Client-facing sheet tabs must be explicitly named `SASHA Initial:` or `SASHA Final:`.
 - A short phase-plan Google Doc is not a final strategy doc. Use the Hittelman strategy doc as the reference standard: `Strategic Content Opportunity & 12-Month Plan`, client meeting context before recommendations, dataset snapshot, priority clusters, 12-month three-phase plan, immediate actions, and native Docs headings/lists.
 - `/home/lfdm/sassy-factory/codi/scripts/run-sasha-pipeline.sh` is stale for final delivery: it can generate local DOCX/report artifacts, but it does not guarantee named SASHA tabs or a polished Google Doc in the client Drive folder.
@@ -226,8 +232,12 @@ Hidden-phase risk:
 - fix: SASHA outputs must include visible phase labels and rationale columns/sections in high-use tabs and strategy docs
 
 Audience-drift risk:
-- symptom: SASHA treats retail consumer queries as if they target advisor organizations
-- fix: Strategy Contract must define primary buyer/audience, and SASHA must hold or reframe client-of-advisor consumer queries
+- symptom: SASHA treats wrong-audience queries as if they target the approved buyer/persona
+- fix: Strategy Contract must define primary buyer/audience, and SASHA must hold or reframe queries that fail that audience fit; Healthspan's advisor/client split is just one example, not a global rule
+
+Client-specific default drift risk:
+- symptom: Healthspan/advisor/platform terms or another client’s phrases become generic SASHA prompt defaults
+- fix: prompts/planners must read client-specific language from Strategy Contract/client context; generic defaults should describe mechanisms, not industries or terms
 
 ## Scope boundary
 
@@ -248,9 +258,10 @@ Do:
 
 2026-05-02 — Healthspan Wealth exposed SASHA visibility and audience-guard gaps
 - CODI/SASSy rerun commit: `4335a57 fix: apply Healthspan doc feedback to CODI SASHA`.
-- Outcome: sheet now has `SASHA: Phase Plan` and `SASHA Initial:*` tabs with visible `Strategy Phase`; strategy doc was rewritten around healthspan/holistic ownership plus advisor platform/software demand.
-- SASHA lesson: final strategy cannot be inferred from high SEO score alone. It must obey Strategy Contract phase priorities, show the phase rationale in the artifact, and separate advisor-organization demand from client-of-advisor consumer demand.
-- Gap to close in `/home/lfdm/sasha`: add native support for Strategy Contract phase labels/rationale, “we own term” strategic lanes, and audience guards before calling outputs SASHA Final.
+- Outcome: sheet now has `SASHA: Phase Plan` and `SASHA Initial:*` tabs with visible `Strategy Phase`; strategy doc was rewritten around Healthspan-specific healthspan/holistic ownership plus advisor platform/software demand.
+- Agnosticism correction: do not generalize Healthspan/advisor/platform terms. The reusable SASHA requirement is to consume Strategy Contract-defined priority lanes, category-creation terms, audience-fit rules, hold terms, and reframe rules.
+- SASHA lesson: final strategy cannot be inferred from high SEO score alone. It must obey Strategy Contract phase priorities, show the phase rationale in the artifact, and separate approved-audience demand from wrong-audience lookalike queries.
+- Gap to close in `/home/lfdm/sasha`: add native support for Strategy Contract phase labels/rationale, contract-defined strategic category lanes, and audience guards before calling outputs SASHA Final.
 
 2026-05-01 — CODI/SASHA feedback loop simplified
 - gpt-5.5-pro audit concluded process was too complex
@@ -270,10 +281,10 @@ Do:
 ## Next actions
 
 1. Audit SASHA planner modules for hardcoded vertical assumptions.
-2. Ensure SASHA can accept Strategy Contract values from CODI/SASSy project controls, including phase labels, phase rationale, audience definitions, and explicit hold/reframe rules.
-3. Add a fail-closed “needs decision” path when approved services/geographies/PPC constraints or audience guards are missing.
-4. Add native support for “we own term” lanes where strategic category language outranks raw volume.
-5. Verify report generation with Hittelman/legal and Healthspan/advisor-platform context, not only Cavity Sliders hardware data.
+2. Define Strategy Contract fields for phase labels, phase rationale, audience definitions, priority lanes, hold terms, reframe rules, and strategic category terms.
+3. Ensure SASHA consumes those Strategy Contract values from CODI/SASSy project controls instead of prompt/source-code defaults.
+4. Add a fail-closed “needs decision” path when approved services/geographies/PPC constraints or audience guards are missing.
+5. Verify report generation with at least two different vertical contexts, e.g. Hittelman/legal and Healthspan/advisor-platform, and confirm no client-specific language leaks across runs.
 6. Keep final Google Docs delivery deterministic and LFDM-styled.
 
 ## Pre-flight checklist before modifying this project
